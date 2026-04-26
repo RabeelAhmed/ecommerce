@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="NOMADICA – Handcrafted goods from around the world. Discover unique artisan treasures, ethically sourced and beautifully made.">
+  <title><%= typeof title !== 'undefined' ? title + ' | NOMADICA' : 'NOMADICA – Handcrafted Treasures' %></title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind compiled CSS -->
+  <link rel="stylesheet" href="/output.css">
+</head>
+<body class="font-body text-stone-800 bg-white flex flex-col min-h-screen antialiased">
+
+  <%- include('partials/header') %>
+
+  <main class="flex-grow">
+    <%- body %>
+  </main>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Global Cart Logic -->
+  <script>
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const bgColor = type === 'success' ? 'bg-stone-900 border-stone-800' : 'bg-red-600 border-red-700';
+      const icon = type === 'success' 
+        ? `<svg class="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`
+        : `<svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+
+      toast.className = `transform transition-all duration-300 translate-y-full opacity-0 flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border text-white ${bgColor} pointer-events-auto`;
+      toast.innerHTML = `
+        ${icon}
+        <span class="font-medium text-sm">${message}</span>
+      `;
+      
+      container.appendChild(toast);
+
+      // Animate in
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-full', 'opacity-0');
+      });
+
+      // Remove after 3s
+      setTimeout(() => {
+        toast.classList.add('translate-y-full', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function updateCartBadge(count) {
+      // Desktop badge
+      const desktopBadge = document.getElementById('cart-badge');
+      if (desktopBadge) {
+        desktopBadge.textContent = count;
+        if (count > 0) desktopBadge.classList.remove('hidden');
+        else desktopBadge.classList.add('hidden');
+        
+        // Slight pop animation
+        desktopBadge.classList.add('scale-125');
+        setTimeout(() => desktopBadge.classList.remove('scale-125'), 200);
+      }
+      
+      // Mobile badge
+      const mobNavCart = document.getElementById('mob-nav-cart');
+      if (mobNavCart) {
+        const mobileBadge = mobNavCart.querySelector('span');
+        if (mobileBadge) {
+          mobileBadge.textContent = count;
+          if (count > 0) mobileBadge.classList.remove('hidden');
+          else mobileBadge.classList.add('hidden');
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Handle Add to Cart from buttons (Product Cards)
+      document.body.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.add-to-cart-btn');
+        if (!btn) return;
+        
+        e.preventDefault();
+        const productId = btn.dataset.productId;
+        if (!productId) {
+            console.error('No product ID found on button');
+            return;
+        }
+        await addToCart(productId, 1);
+      });
+
+      // Handle Add to Cart from forms (Product Detail Page)
+      const cartForm = document.getElementById('add-to-cart-form');
+      if (cartForm) {
+        cartForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const productId = cartForm.dataset.productId;
+          const qtyInput = document.getElementById('qty-input');
+          const quantity = qtyInput ? parseInt(qtyInput.value, 10) : 1;
+          await addToCart(productId, quantity);
+        });
+      }
+
+      async function addToCart(productId, quantity) {
+        try {
+          const res = await fetch('/api/cart/items', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productId, quantity })
+          });
+          
+          if (res.status === 401) {
+            showToast('Please log in to add items to your cart.', 'error');
+            setTimeout(() => { window.location.href = '/account'; }, 1500);
+            return;
+          }
+          
+          const data = await res.json();
+          if (res.ok) {
+            showToast('Item added to your cart successfully!');
+            // Calculate new count
+            const items = data.data.items || [];
+            const newCount = items.reduce((sum, item) => sum + item.quantity, 0);
+            updateCartBadge(newCount);
+          } else {
+            showToast(data.error || data.message || 'Failed to add item', 'error');
+          }
+        } catch (err) {
+          console.error('Add to cart error:', err);
+          showToast('An error occurred while adding to cart.', 'error');
+        }
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<%# views/pages/shop.ejs — rendered inside layout.ejs %>
+
+<!-- ─── Page Header ─────────────────────────────────────────────────────────── -->
+<section class="bg-gradient-to-b from-brand-50 to-white py-14 border-b border-stone-100">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-xs text-stone-400 mb-6" aria-label="Breadcrumb">
+      <a href="/" class="hover:text-brand-500 transition-colors">Home</a>
+      <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+      </svg>
+      <span class="text-stone-600 font-medium">Shop</span>
+      <% if (filters.category) { %>
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+        </svg>
+        <span class="text-stone-600 font-medium capitalize"><%= filters.category %></span>
+      <% } %>
+    </nav>
+
+    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div>
+        <p class="text-xs font-semibold tracking-[0.2em] uppercase text-brand-500 mb-1">
+          <%= pagination.totalProducts %> items available
+        </p>
+        <h1 class="font-display text-4xl sm:text-5xl font-bold text-stone-900">
+          <% if (filters.search) { %>
+            Results for "<em class="italic text-brand-500"><%= filters.search %></em>"
+          <% } else if (filters.category) { %>
+            <span class="capitalize"><%= filters.category %></span>
+          <% } else { %>
+            The Collection
+          <% } %>
+        </h1>
+      </div>
+
+      <!-- Search bar -->
+      <form action="/shop" method="GET" class="flex gap-2" id="search-form" role="search">
+        <% if (filters.category) { %>
+          <input type="hidden" name="category" value="<%= filters.category %>">
+        <% } %>
+        <div class="relative">
+          <input
+            type="text"
+            name="search"
+            value="<%= filters.search %>"
+            placeholder="Search products…"
+            aria-label="Search products"
+            class="pl-10 pr-4 py-2.5 rounded-full border border-stone-200 bg-white text-sm text-stone-700 placeholder-stone-400
+                   focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent
+                   shadow-sm hover:border-stone-300 transition-all w-64"
+          >
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none"
+               fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+          </svg>
+        </div>
+        <button type="submit" class="btn-primary !px-5 !py-2.5 !text-sm" id="search-btn">Search</button>
+        <% if (filters.search || filters.category) { %>
+          <a href="/shop" class="flex items-center gap-1 text-sm text-stone-500 hover:text-stone-700 transition-colors px-2" id="clear-filters-btn" aria-label="Clear all filters">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            Clear
+          </a>
+        <% } %>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Main Content ─────────────────────────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+  <div class="flex flex-col lg:flex-row gap-10">
+
+    <!-- ─── Sidebar ──────────────────────────────────────────────────────────── -->
+    <aside class="w-full lg:w-60 flex-shrink-0" aria-label="Category filter">
+      <div class="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 sticky top-24">
+        <h2 class="font-display text-base font-semibold text-stone-800 mb-4 flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 8h10M10 12h4"/>
+          </svg>
+          Categories
+        </h2>
+
+        <nav class="flex flex-col gap-1" aria-label="Category navigation">
+          <!-- All products link -->
+          <a
+            href="/shop<%= filters.search ? '?search=' + encodeURIComponent(filters.search) : '' %>"
+            class="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200
+                   <%= !filters.category ? 'bg-brand-500 text-white shadow-sm' : 'text-stone-600 hover:bg-brand-50 hover:text-brand-600' %>"
+            id="cat-filter-all"
+          >
+            <span>All Products</span>
+            <% if (!filters.category) { %>
+              <svg class="w-3.5 h-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+            <% } %>
+          </a>
+
+          <!-- Dynamic category links -->
+          <% categories.forEach(function(cat) { %>
+            <%
+              const isActive = filters.category === cat.slug;
+              const href = '/shop?category=' + encodeURIComponent(cat.slug) + (filters.search ? '&search=' + encodeURIComponent(filters.search) : '');
+            %>
+            <a
+              href="<%= href %>"
+              class="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200
+                     <%= isActive ? 'bg-brand-500 text-white shadow-sm' : 'text-stone-600 hover:bg-brand-50 hover:text-brand-600' %>"
+              id="cat-filter-<%= cat.slug %>"
+              aria-current="<%= isActive ? 'page' : 'false' %>"
+            >
+              <span class="capitalize"><%= cat.name %></span>
+              <% if (isActive) { %>
+                <svg class="w-3.5 h-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                </svg>
+              <% } %>
+            </a>
+          <% }); %>
+        </nav>
+
+        <% if (categories.length === 0) { %>
+          <p class="text-xs text-stone-400 mt-3">No categories yet.</p>
+        <% } %>
+      </div>
+    </aside>
+
+    <!-- ─── Product Grid ─────────────────────────────────────────────────────── -->
+    <section class="flex-1 min-w-0" aria-label="Product listing">
+
+      <% if (products.length === 0) { %>
+        <!-- Empty state -->
+        <div class="flex flex-col items-center justify-center py-32 text-center gap-4">
+          <div class="w-20 h-20 rounded-full bg-brand-50 flex items-center justify-center">
+            <svg class="w-9 h-9 text-brand-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/>
+            </svg>
+          </div>
+          <p class="font-display text-2xl font-semibold text-stone-700">No products found</p>
+          <p class="text-stone-400 text-sm max-w-xs">
+            Try a different search term or browse all categories.
+          </p>
+          <a href="/shop" class="btn-primary mt-2" id="browse-all-btn">Browse All</a>
+        </div>
+
+      <% } else { %>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6" id="products-grid">
+          <% products.forEach(function(product) { %>
+            <%- include('../partials/product-card', { product: product }) %>
+          <% }); %>
+        </div>
+
+        <!-- ─── Pagination ─────────────────────────────────────────────────── -->
+        <% if (pagination.totalPages > 1) { %>
+          <nav class="flex items-center justify-center gap-2 mt-14" aria-label="Pagination">
+            <%
+              const buildUrl = (p) => {
+                const q = new URLSearchParams();
+                if (filters.category) q.set('category', filters.category);
+                if (filters.search)   q.set('search', filters.search);
+                q.set('page', p);
+                return '/shop?' + q.toString();
+              };
+              const cur = pagination.currentPage;
+              const total = pagination.totalPages;
+            %>
+
+            <!-- Previous -->
+            <% if (cur > 1) { %>
+              <a href="<%= buildUrl(cur - 1) %>"
+                 class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border border-stone-200
+                        text-stone-600 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200 transition-all duration-200"
+                 aria-label="Previous page" id="pagination-prev">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                </svg>
+                Prev
+              </a>
+            <% } %>
+
+            <!-- Page numbers -->
+            <%
+              let start = Math.max(1, cur - 2);
+              let end   = Math.min(total, cur + 2);
+            %>
+            <% if (start > 1) { %>
+              <a href="<%= buildUrl(1) %>" class="w-9 h-9 flex items-center justify-center rounded-xl text-sm font-medium
+                 border border-stone-200 text-stone-600 hover:bg-brand-50 hover:text-brand-600 transition-all" id="pagination-page-1">1</a>
+              <% if (start > 2) { %><span class="px-1 text-stone-400">…</span><% } %>
+            <% } %>
+
+            <% for (let i = start; i <= end; i++) { %>
+              <a href="<%= buildUrl(i) %>"
+                 class="w-9 h-9 flex items-center justify-center rounded-xl text-sm font-medium transition-all duration-200
+                        <%= i === cur ? 'bg-brand-500 text-white shadow-sm' : 'border border-stone-200 text-stone-600 hover:bg-brand-50 hover:text-brand-600' %>"
+                 aria-label="Page <%= i %>" aria-current="<%= i === cur ? 'page' : 'false' %>"
+                 id="pagination-page-<%= i %>">
+                <%= i %>
+              </a>
+            <% } %>
+
+            <% if (end < total) { %>
+              <% if (end < total - 1) { %><span class="px-1 text-stone-400">…</span><% } %>
+              <a href="<%= buildUrl(total) %>" class="w-9 h-9 flex items-center justify-center rounded-xl text-sm font-medium
+                 border border-stone-200 text-stone-600 hover:bg-brand-50 hover:text-brand-600 transition-all"
+                 id="pagination-page-<%= total %>"><%= total %></a>
+            <% } %>
+
+            <!-- Next -->
+            <% if (cur < total) { %>
+              <a href="<%= buildUrl(cur + 1) %>"
+                 class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border border-stone-200
+                        text-stone-600 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200 transition-all duration-200"
+                 aria-label="Next page" id="pagination-next">
+                Next
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                </svg>
+              </a>
+            <% } %>
+          </nav>
+        <% } %>
+      <% } %>
+
+    </section>
+  </div>
+</div>

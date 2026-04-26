@@ -1,0 +1,53 @@
+<%# product-card.ejs — accepts: product { name, price, image_url, slug, stock } %>
+<article class="group relative bg-white rounded-2xl shadow-md overflow-hidden flex flex-col transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+
+  <!-- Image wrapper -->
+  <a href="/shop/<%= product.slug %>" class="block overflow-hidden aspect-square bg-brand-50" tabindex="-1" aria-hidden="true">
+    <img
+      src="<%= product.image_url %>"
+      alt="<%= product.name %>"
+      class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+      loading="lazy"
+    >
+    <% if (product.stock === 0) { %>
+      <div class="absolute inset-0 bg-black/40 flex items-center justify-center">
+        <span class="bg-white text-stone-700 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider">Sold Out</span>
+      </div>
+    <% } %>
+  </a>
+
+  <!-- Content -->
+  <div class="flex flex-col flex-grow p-4 gap-2">
+    <a href="/shop/<%= product.slug %>">
+      <h3 class="font-display text-base font-semibold text-stone-800 leading-snug line-clamp-2 hover:text-brand-600 transition-colors duration-200">
+        <%= product.name %>
+      </h3>
+    </a>
+
+    <div class="flex items-center justify-between mt-auto pt-2">
+      <span class="text-brand-600 font-bold text-lg">$<%= Number(product.price).toFixed(2) %></span>
+
+      <% if (product.stock > 0) { %>
+        <button
+          class="btn-primary !px-4 !py-2 !text-sm add-to-cart-btn"
+          data-product-id="<%= product.id %>"
+          aria-label="Add <%= product.name %> to cart"
+        >
+          <!-- Cart icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.5 6h11M10 19a1 1 0 100 2 1 1 0 000-2zm7 0a1 1 0 100 2 1 1 0 000-2z"/>
+          </svg>
+          Add
+        </button>
+      <% } else { %>
+        <button
+          disabled
+          class="px-4 py-2 text-sm rounded-full bg-stone-100 text-stone-400 font-semibold cursor-not-allowed"
+          aria-label="<%= product.name %> is out of stock"
+        >
+          Sold Out
+        </button>
+      <% } %>
+    </div>
+  </div>
+</article>

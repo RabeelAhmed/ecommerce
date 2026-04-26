@@ -1,0 +1,18 @@
+<%# btn-primary.ejs — accepts: text (string), href (optional), id (optional), type (optional) %>
+<% if (typeof href !== 'undefined' && href) { %>
+  <a
+    href="<%= href %>"
+    class="btn-primary"
+    <% if (typeof id !== 'undefined' && id) { %>id="<%= id %>"<% } %>
+  >
+    <%- text %>
+  </a>
+<% } else { %>
+  <button
+    type="<%= (typeof type !== 'undefined' && type) ? type : 'button' %>"
+    class="btn-primary"
+    <% if (typeof id !== 'undefined' && id) { %>id="<%= id %>"<% } %>
+  >
+    <%- text %>
+  </button>
+<% } %>
