@@ -18,8 +18,14 @@ router.get('/', asyncHandler(async (req, res) => {
 
     const categories = await productService.getAllCategories();
 
+    // Build per-page description
+    let desc = 'Browse our curated collection of handcrafted artisan goods at NOMADICA.';
+    if (search) desc = `Search results for "${search}" \u2013 NOMADICA handcrafted collection.`;
+    else if (categorySlug) desc = `Shop ${categorySlug} \u2013 handcrafted artisan goods from NOMADICA.`;
+
     res.render('pages/shop', {
-        title: 'Shop',
+        title: search ? `"${search}" \u2013 Shop` : categorySlug ? `${categorySlug} \u2013 Shop` : 'Shop',
+        description: desc,
         products,
         categories,
         pagination: {
@@ -39,8 +45,12 @@ router.get('/:slug', asyncHandler(async (req, res) => {
     
     res.render('pages/product', {
         title: product.name,
+        description: product.description
+            ? product.description.slice(0, 155)
+            : `Shop ${product.name} \u2013 handcrafted and ethically sourced at NOMADICA.`,
         product
     });
 }));
 
 module.exports = router;
+

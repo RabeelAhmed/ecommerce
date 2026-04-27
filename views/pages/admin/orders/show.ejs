@@ -1,0 +1,130 @@
+<div class="mb-8 flex items-center justify-between">
+  <div class="flex items-center gap-4">
+    <a href="/admin/orders" class="text-stone-400 hover:text-stone-800 transition-colors">
+      <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+      </svg>
+    </a>
+    <div>
+      <h1 class="text-3xl font-serif text-stone-900 tracking-tight">Order Details</h1>
+      <p class="text-stone-500 mt-1 font-mono text-sm">#<%= order.id %></p>
+    </div>
+  </div>
+  
+  <div>
+    <% 
+      const statusColors = {
+        'pending': 'bg-yellow-50 text-yellow-700 border-yellow-200',
+        'processing': 'bg-blue-50 text-blue-700 border-blue-200',
+        'shipped': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        'delivered': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        'cancelled': 'bg-red-50 text-red-700 border-red-200'
+      };
+      const colorClass = statusColors[order.status] || 'bg-stone-50 text-stone-700 border-stone-200';
+    %>
+    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border <%= colorClass %>">
+      <span class="capitalize"><%= order.status %></span>
+    </span>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+  
+  <!-- Left Column: Items & Timeline -->
+  <div class="lg:col-span-2 space-y-8">
+    
+    <!-- Items -->
+    <div class="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden">
+      <div class="px-6 py-5 border-b border-stone-100 flex justify-between items-center bg-stone-50">
+        <h2 class="text-lg font-medium text-stone-900">Order Items</h2>
+        <span class="text-sm text-stone-500"><%= order.items.length %> items</span>
+      </div>
+      <div class="divide-y divide-stone-100 p-6">
+        <% order.items.forEach(item => { %>
+          <div class="flex items-center py-4 first:pt-0 last:pb-0">
+            <div class="h-16 w-16 flex-shrink-0 bg-stone-100 rounded-lg overflow-hidden border border-stone-200">
+              <% if (item.image_url) { %>
+                <img src="<%= item.image_url %>" alt="<%= item.product_name %>" class="h-full w-full object-cover">
+              <% } else { %>
+                <div class="h-full w-full flex items-center justify-center text-stone-400">
+                  <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                </div>
+              <% } %>
+            </div>
+            <div class="ml-4 flex-1">
+              <div class="text-sm font-medium text-stone-900"><%= item.product_name %></div>
+              <div class="text-sm text-stone-500 mt-1">Qty: <%= item.quantity %></div>
+            </div>
+            <div class="text-sm font-medium text-stone-900">
+              $<%= (parseFloat(item.price) * item.quantity).toFixed(2) %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <div class="px-6 py-5 bg-stone-50 border-t border-stone-100 flex justify-between items-center">
+        <span class="text-stone-600 font-medium">Total</span>
+        <span class="text-xl font-bold text-stone-900">$<%= parseFloat(order.total).toFixed(2) %></span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right Column: Customer & Status Update -->
+  <div class="space-y-8">
+    
+    <!-- Customer Info -->
+    <div class="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden">
+      <div class="px-6 py-5 border-b border-stone-100 bg-stone-50">
+        <h2 class="text-lg font-medium text-stone-900">Customer Details</h2>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <p class="text-xs font-medium text-stone-500 uppercase tracking-wider">Name</p>
+          <p class="mt-1 text-sm text-stone-900"><%= order.customer_name %></p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-stone-500 uppercase tracking-wider">Email</p>
+          <p class="mt-1 text-sm text-stone-900"><a href="mailto:<%= order.customer_email %>" class="text-indigo-600 hover:underline"><%= order.customer_email %></a></p>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-stone-500 uppercase tracking-wider">Shipping Address</p>
+          <div class="mt-1 text-sm text-stone-900 leading-relaxed">
+            <%= order.shipping_address.street %><br>
+            <%= order.shipping_address.city %>, <%= order.shipping_address.state %> <%= order.shipping_address.zipCode %><br>
+            <%= order.shipping_address.country %>
+          </div>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-stone-500 uppercase tracking-wider">Order Date</p>
+          <p class="mt-1 text-sm text-stone-900"><%= new Date(order.created_at).toLocaleString() %></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Update Status -->
+    <div class="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden">
+      <div class="px-6 py-5 border-b border-stone-100 bg-stone-50">
+        <h2 class="text-lg font-medium text-stone-900">Update Status</h2>
+      </div>
+      <div class="p-6">
+        <form action="/admin/orders/<%= order.id %>/status" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label for="status" class="block text-sm font-medium text-stone-700 mb-2">Order Status</label>
+          <select id="status" name="status" class="w-full px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-stone-900 focus:border-stone-900 outline-none transition-all bg-white mb-4">
+            <option value="pending" <%= order.status === 'pending' ? 'selected' : '' %>>Pending</option>
+            <option value="processing" <%= order.status === 'processing' ? 'selected' : '' %>>Processing</option>
+            <option value="shipped" <%= order.status === 'shipped' ? 'selected' : '' %>>Shipped</option>
+            <option value="delivered" <%= order.status === 'delivered' ? 'selected' : '' %>>Delivered</option>
+            <option value="cancelled" <%= order.status === 'cancelled' ? 'selected' : '' %>>Cancelled</option>
+          </select>
+          <button type="submit" class="w-full px-4 py-2.5 bg-stone-900 text-white rounded-lg hover:bg-stone-800 transition-colors font-medium">
+            Save Status
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>

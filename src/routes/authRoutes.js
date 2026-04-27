@@ -16,7 +16,8 @@ const authLimiter = rateLimit({
     message: { error: 'Too many authentication attempts from this IP, please try again after 15 minutes' }
 });
 
-router.use(authLimiter);
+// Apply rate limiter to specific routes instead of all
+// router.use(authLimiter);
 
 // Validation middleware
 const validateRegister = [
@@ -61,7 +62,7 @@ const setTokenCookies = (res, accessToken, refreshToken) => {
     });
 };
 
-router.post('/register', validateRegister, handleValidationErrors, asyncHandler(async (req, res) => {
+router.post('/register', authLimiter, validateRegister, handleValidationErrors, asyncHandler(async (req, res) => {
     const { email, password, fullName } = req.body;
     
     const user = await userService.createUser(email, password, fullName);
@@ -77,7 +78,7 @@ router.post('/register', validateRegister, handleValidationErrors, asyncHandler(
     });
 }));
 
-router.post('/login', validateLogin, handleValidationErrors, asyncHandler(async (req, res) => {
+router.post('/login', authLimiter, validateLogin, handleValidationErrors, asyncHandler(async (req, res) => {
     const { email, password } = req.body;
     
     const user = await userService.authenticateUser(email, password);

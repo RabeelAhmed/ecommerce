@@ -1,0 +1,248 @@
+<%
+  const shortId = order.id.split('-')[0].toUpperCase();
+  const createdAt = new Date(order.created_at);
+  const formattedDate = createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const formattedTime = createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const addr = order.shipping_address;
+  const subtotal = parseFloat(order.total).toFixed(2);
+%>
+
+<style>
+  @keyframes successPop {
+    0%   { transform: scale(0.5) rotate(-5deg); opacity: 0; }
+    60%  { transform: scale(1.08) rotate(2deg); }
+    80%  { transform: scale(0.97) rotate(-1deg); }
+    100% { transform: scale(1) rotate(0deg);    opacity: 1; }
+  }
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes drawLine {
+    from { stroke-dashoffset: 200; }
+    to   { stroke-dashoffset: 0; }
+  }
+  .anim-pop    { animation: successPop 0.7s cubic-bezier(.36,.07,.19,.97) both; }
+  .anim-slide  { animation: fadeSlideUp 0.6s ease both; }
+  .anim-delay1 { animation-delay: 0.15s; }
+  .anim-delay2 { animation-delay: 0.30s; }
+  .anim-delay3 { animation-delay: 0.45s; }
+  .anim-delay4 { animation-delay: 0.60s; }
+
+  .confirmation-card {
+    background: #fff;
+    border-radius: 28px;
+    border: 1px solid #f0f0f0;
+    box-shadow: 0 4px 40px rgba(0,0,0,0.06);
+  }
+  .step-dot {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; flex-shrink: 0;
+  }
+  .step-done  { background: #111; color: #fff; }
+  .step-next  { background: #f5f5f5; color: #999; border: 2px dashed #ddd; }
+  .step-line  { width: 2px; flex: 1; min-height: 28px; background: linear-gradient(#111 0%, #e5e7eb 100%); margin: 4px auto; }
+  .tag-confirmed { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; letter-spacing: .4px; }
+</style>
+
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
+
+  <!-- ── Hero ── -->
+  <div class="text-center mb-12 anim-slide">
+    <div class="inline-block mb-6 anim-pop">
+      <img src="/images/thank-you.png" alt="Thank you illustration"
+           class="w-56 h-auto mx-auto drop-shadow-md select-none"
+           style="filter: drop-shadow(0 8px 20px rgba(0,0,0,0.12));">
+    </div>
+    <span class="tag-confirmed mb-4 inline-block">Order Confirmed</span>
+    <h1 class="text-4xl md:text-5xl font-light text-gray-900 mt-4 mb-3 tracking-tight">
+      Thank you for your order!
+    </h1>
+    <p class="text-gray-500 text-lg max-w-xl mx-auto">
+      We've received your order and are getting it ready. You'll hear from us as soon as it ships.
+    </p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+    <!-- ── LEFT: Order Summary ── -->
+    <div class="lg:col-span-2 space-y-6">
+
+      <!-- Order meta banner -->
+      <div class="confirmation-card p-6 anim-slide anim-delay1 flex flex-wrap gap-6 justify-between items-center">
+        <div>
+          <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Order Number</p>
+          <p class="text-2xl font-mono font-semibold text-gray-900">#<%= shortId %></p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Placed On</p>
+          <p class="font-medium text-gray-800"><%= formattedDate %></p>
+          <p class="text-sm text-gray-400"><%= formattedTime %></p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Status</p>
+          <span class="tag-confirmed">Confirmed</span>
+        </div>
+        <div class="text-right">
+          <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Total Paid</p>
+          <p class="text-2xl font-semibold text-gray-900">$<%= subtotal %></p>
+        </div>
+      </div>
+
+      <!-- Items -->
+      <div class="confirmation-card p-6 anim-slide anim-delay2">
+        <h2 class="text-base font-semibold text-gray-900 mb-5 pb-3 border-b border-gray-100">Order Items</h2>
+        <div class="space-y-4">
+          <% order.items.forEach((item, i) => { %>
+            <div class="flex items-center gap-4">
+              <!-- Index badge -->
+              <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                <span class="text-xs font-semibold text-gray-500"><%= i + 1 %></span>
+              </div>
+              <div class="flex-grow min-w-0">
+                <p class="font-medium text-gray-900 truncate"><%= item.product_name %></p>
+                <p class="text-sm text-gray-400">Qty: <%= item.quantity %> &times; $<%= parseFloat(item.price).toFixed(2) %></p>
+              </div>
+              <div class="text-right flex-shrink-0">
+                <p class="font-semibold text-gray-900">$<%= (parseFloat(item.price) * item.quantity).toFixed(2) %></p>
+              </div>
+            </div>
+            <% if (i < order.items.length - 1) { %>
+              <hr class="border-gray-50">
+            <% } %>
+          <% }); %>
+        </div>
+
+        <!-- Totals -->
+        <div class="mt-6 pt-5 border-t border-gray-100 space-y-2">
+          <div class="flex justify-between text-sm text-gray-500">
+            <span>Subtotal</span>
+            <span>$<%= subtotal %></span>
+          </div>
+          <div class="flex justify-between text-sm text-gray-500">
+            <span>Shipping</span>
+            <span class="text-emerald-600 font-medium">Free</span>
+          </div>
+          <div class="flex justify-between text-base font-semibold text-gray-900 pt-3 border-t border-gray-100">
+            <span>Total</span>
+            <span>$<%= subtotal %></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CTA buttons -->
+      <div class="flex flex-wrap gap-3 anim-slide anim-delay4">
+        <a href="/shop"
+           class="flex-1 min-w-[160px] text-center bg-gray-900 text-white px-6 py-3.5 rounded-xl font-medium hover:bg-black transition-all hover:shadow-lg hover:-translate-y-0.5 transform">
+          Continue Shopping
+        </a>
+        <a href="/account"
+           class="flex-1 min-w-[160px] text-center bg-white text-gray-900 border border-gray-200 px-6 py-3.5 rounded-xl font-medium hover:bg-gray-50 transition-colors">
+          View My Account
+        </a>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: Shipping & Status ── -->
+    <div class="space-y-6">
+
+      <!-- Shipping Address -->
+      <div class="confirmation-card p-6 anim-slide anim-delay2">
+        <h2 class="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          Shipping To
+        </h2>
+        <% if (addr) { %>
+          <p class="font-medium text-gray-900"><%= addr.name || '—' %></p>
+          <p class="text-sm text-gray-500 mt-1 leading-relaxed">
+            <%= addr.address || '' %><br>
+            <%= addr.city || '' %><% if (addr.zip) { %>, <%= addr.zip %><% } %><br>
+            <%= addr.country || '' %>
+          </p>
+        <% } else { %>
+          <p class="text-sm text-gray-400">No address on record</p>
+        <% } %>
+      </div>
+
+      <!-- Order Status Timeline -->
+      <div class="confirmation-card p-6 anim-slide anim-delay3">
+        <h2 class="text-base font-semibold text-gray-900 mb-5">Delivery Progress</h2>
+        
+        <% if (order.status === 'cancelled') { %>
+          <div class="bg-red-50 text-red-600 p-4 rounded-xl border border-red-100 flex items-center gap-3">
+            <svg class="w-6 h-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <p class="font-medium">Order Cancelled</p>
+              <p class="text-sm mt-0.5 text-red-500">This order has been cancelled.</p>
+            </div>
+          </div>
+        <% } else { 
+            let level = 1;
+            if (order.status === 'processing') level = 2;
+            if (order.status === 'shipped') level = 3;
+            if (order.status === 'delivered') level = 4;
+        %>
+          <div class="flex flex-col">
+
+            <!-- Step 1: Confirmed -->
+            <div class="flex gap-4 items-start">
+              <div class="flex flex-col items-center">
+                <div class="step-dot <%= level >= 1 ? 'step-done' : 'step-next' %>">✓</div>
+                <div class="step-line" style="<%= level >= 2 ? 'background: linear-gradient(#111 0%, #111 100%);' : 'background: linear-gradient(#111 0%, #e5e7eb 100%);' %>"></div>
+              </div>
+              <div class="pb-5">
+                <p class="font-medium text-gray-900 text-sm">Order Confirmed</p>
+                <p class="text-xs text-gray-400"><%= formattedDate %></p>
+              </div>
+            </div>
+
+            <!-- Step 2: Processing -->
+            <div class="flex gap-4 items-start">
+              <div class="flex flex-col items-center">
+                <div class="step-dot <%= level >= 2 ? 'step-done' : 'step-next' %>">⚙</div>
+                <div class="step-line" style="<%= level >= 3 ? 'background: linear-gradient(#111 0%, #111 100%);' : (level === 2 ? 'background: linear-gradient(#111 0%, #e5e7eb 100%);' : 'background: linear-gradient(#e5e7eb 0%, #e5e7eb 100%);') %>"></div>
+              </div>
+              <div class="pb-5">
+                <p class="font-medium <%= level >= 2 ? 'text-gray-900' : 'text-gray-400' %> text-sm">Processing</p>
+                <p class="text-xs <%= level >= 2 ? 'text-gray-400' : 'text-gray-300' %>"><%= level >= 2 ? 'Preparing your items' : 'Pending' %></p>
+              </div>
+            </div>
+
+            <!-- Step 3: Shipped -->
+            <div class="flex gap-4 items-start">
+              <div class="flex flex-col items-center">
+                <div class="step-dot <%= level >= 3 ? 'step-done' : 'step-next' %>">🚚</div>
+                <div class="step-line" style="<%= level >= 4 ? 'background: linear-gradient(#111 0%, #111 100%);' : (level === 3 ? 'background: linear-gradient(#111 0%, #e5e7eb 100%);' : 'background: linear-gradient(#e5e7eb 0%, #e5e7eb 100%);') %>"></div>
+              </div>
+              <div class="pb-5">
+                <p class="font-medium <%= level >= 3 ? 'text-gray-900' : 'text-gray-400' %> text-sm">Shipped</p>
+                <p class="text-xs <%= level >= 3 ? 'text-gray-400' : 'text-gray-300' %>"><%= level >= 3 ? 'On the way' : 'Pending' %></p>
+              </div>
+            </div>
+
+            <!-- Step 4: Delivered -->
+            <div class="flex gap-4 items-start">
+              <div class="flex flex-col items-center">
+                <div class="step-dot <%= level >= 4 ? 'step-done' : 'step-next' %>">📦</div>
+              </div>
+              <div>
+                <p class="font-medium <%= level >= 4 ? 'text-gray-900' : 'text-gray-400' %> text-sm">Delivered</p>
+                <p class="text-xs <%= level >= 4 ? 'text-gray-400' : 'text-gray-300' %>"><%= level >= 4 ? 'Arrived safely' : 'Est. 3–5 business days' %></p>
+              </div>
+            </div>
+
+          </div>
+        <% } %>
+      </div>
+
+    </div>
+  </div>
+</div>

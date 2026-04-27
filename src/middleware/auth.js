@@ -10,7 +10,8 @@ const authenticate = (req, res, next) => {
 
         const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
         req.user = {
-            userId: decoded.userId,
+            id: decoded.userId,      // alias used by orderRoutes, cartRoutes etc.
+            userId: decoded.userId,  // kept for backwards compatibility
             role: decoded.role
         };
         next();

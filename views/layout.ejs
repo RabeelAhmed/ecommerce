@@ -3,8 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="NOMADICA – Handcrafted goods from around the world. Discover unique artisan treasures, ethically sourced and beautifully made.">
-  <title><%= typeof title !== 'undefined' ? title + ' | NOMADICA' : 'NOMADICA – Handcrafted Treasures' %></title>
+
+  <!-- Dynamic SEO meta -->
+  <% const pageTitle = typeof title !== 'undefined' ? title + ' | NOMADICA' : 'NOMADICA – Handcrafted Treasures'; %>
+  <% const pageDesc = typeof description !== 'undefined' ? description : 'NOMADICA – Handcrafted goods from around the world. Discover unique artisan treasures, ethically sourced and beautifully made.'; %>
+  <title><%= pageTitle %></title>
+  <meta name="description" content="<%= pageDesc %>">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NOMADICA">
+  <meta property="og:title" content="<%= pageTitle %>">
+  <meta property="og:description" content="<%= pageDesc %>">
+
+  <!-- CSRF token for AJAX calls -->
+  <meta name="csrf-token" content="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -108,11 +121,19 @@
         });
       }
 
+      function getCsrfToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.content : '';
+      }
+
       async function addToCart(productId, quantity) {
         try {
           const res = await fetch('/api/cart/items', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': getCsrfToken()
+            },
             body: JSON.stringify({ productId, quantity })
           });
           

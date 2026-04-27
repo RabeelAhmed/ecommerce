@@ -1,16 +1,88 @@
-<section class="min-h-[70vh] flex flex-col items-center justify-center text-center px-4">
-  <div class="mb-8">
-    <svg class="w-24 h-24 text-brand-200 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+<section class="min-h-[80vh] flex flex-col items-center justify-center text-center px-4 py-20">
+
+  <!-- Illustration -->
+  <div class="relative mb-10 select-none">
+    <svg width="220" height="180" viewBox="0 0 220 180" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <!-- Ground shadow -->
+      <ellipse cx="110" cy="168" rx="80" ry="8" fill="#e7e5e4" opacity="0.5"/>
+
+      <!-- Broken pot / vase body -->
+      <path d="M75 80 Q70 130 85 155 Q100 170 110 170 Q120 170 135 155 Q150 130 145 80 Z" fill="#fdf6e3" stroke="#d6c9a4" stroke-width="2"/>
+      <!-- Crack lines -->
+      <path d="M110 85 L105 110 L115 125 L108 148" stroke="#c9b99a" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M105 110 L95 118" stroke="#c9b99a" stroke-width="1.5" stroke-linecap="round"/>
+
+      <!-- Vase top rim -->
+      <rect x="78" y="75" width="64" height="12" rx="6" fill="#e8dfc8" stroke="#c9b99a" stroke-width="1.5"/>
+
+      <!-- Flowers / plants (wilted) -->
+      <line x1="110" y1="75" x2="90" y2="40" stroke="#6b7280" stroke-width="2" stroke-linecap="round"/>
+      <line x1="110" y1="75" x2="130" y2="35" stroke="#6b7280" stroke-width="2" stroke-linecap="round"/>
+      <line x1="110" y1="75" x2="108" y2="30" stroke="#6b7280" stroke-width="2" stroke-linecap="round"/>
+      <!-- Wilted petals -->
+      <circle cx="90" cy="38" r="8" fill="#fca5a5" opacity="0.7"/>
+      <circle cx="130" cy="33" r="7" fill="#fdba74" opacity="0.7"/>
+      <circle cx="108" cy="28" r="6" fill="#f9a8d4" opacity="0.7"/>
+      <!-- Drooping stems -->
+      <path d="M90 38 Q85 50 78 55" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+      <path d="M130 33 Q135 45 140 52" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+
+      <!-- Spill water drops -->
+      <ellipse cx="60" cy="155" rx="14" ry="6" fill="#bae6fd" opacity="0.5"/>
+      <ellipse cx="160" cy="160" rx="10" ry="4" fill="#bae6fd" opacity="0.4"/>
+
+      <!-- Floating sparkles -->
+      <circle cx="35" cy="60" r="3" fill="#f59e0b" opacity="0.6"/>
+      <circle cx="185" cy="50" r="2" fill="#a78bfa" opacity="0.7"/>
+      <circle cx="40" cy="130" r="2" fill="#6ee7b7" opacity="0.6"/>
+      <circle cx="178" cy="120" r="3" fill="#fb923c" opacity="0.5"/>
     </svg>
+
+    <!-- Status badge -->
+    <div class="absolute -top-3 -right-6 w-16 h-16 rounded-full bg-red-500 shadow-lg flex items-center justify-center">
+      <span class="text-white font-display font-bold text-lg leading-none">
+        <%= typeof statusCode !== 'undefined' ? statusCode : '500' %>
+      </span>
+    </div>
   </div>
-  
-  <h1 class="font-display text-5xl font-bold text-stone-900 mb-4"><%= typeof statusCode !== 'undefined' ? statusCode : '500' %></h1>
-  <p class="text-xl text-stone-600 mb-8 max-w-md mx-auto">
-    <%= typeof message !== 'undefined' ? message : 'Something went wrong.' %>
+
+  <!-- Heading -->
+  <h1 class="font-display text-3xl sm:text-4xl font-bold text-stone-900 mb-3">
+    <% if (typeof statusCode !== 'undefined' && statusCode === 403) { %>
+      Access Denied
+    <% } else if (typeof statusCode !== 'undefined' && statusCode === 404) { %>
+      Page Not Found
+    <% } else { %>
+      Something Went Wrong
+    <% } %>
+  </h1>
+
+  <p class="text-stone-500 text-lg max-w-md mx-auto mb-10 leading-relaxed">
+    <%= typeof message !== 'undefined' ? message : 'An unexpected error occurred. Please try again.' %>
   </p>
-  
-  <a href="/" class="btn-primary">
-    Return to Home
-  </a>
+
+  <!-- Actions -->
+  <div class="flex flex-col sm:flex-row gap-4 items-center justify-center">
+    <a
+      href="/"
+      id="btn-error-home"
+      class="inline-flex items-center gap-2 px-7 py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2"
+    >
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+      </svg>
+      Return Home
+    </a>
+    <a
+      href="/shop"
+      id="btn-error-shop"
+      class="inline-flex items-center gap-2 px-7 py-3.5 border border-stone-200 text-stone-700 hover:bg-stone-50 font-semibold rounded-xl transition-all duration-200"
+    >
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+      </svg>
+      Browse Shop
+    </a>
+  </div>
+
 </section>
