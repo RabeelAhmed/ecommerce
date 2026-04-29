@@ -44,6 +44,13 @@ router.get('/checkout', auth, asyncHandler(async (req, res) => {
 // GET /order/:id/confirmation - Render order confirmation page
 router.get('/order/:id/confirmation', auth, asyncHandler(async (req, res) => {
     const orderId = req.params.id;
+
+    // Guard: reject malformed UUIDs before hitting the DB (avoids PostgreSQL cast error -> 500)
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(orderId)) {
+        throw new AppError('Invalid order ID', 400);
+    }
+
     const order = await orderService.getOrderById(orderId, req.user.id);
 
     res.render('pages/order-confirmation', {

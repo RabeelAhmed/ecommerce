@@ -1,13 +1,39 @@
 const express = require('express');
+const { body, validationResult } = require('express-validator');
 const router = express.Router();
 const productAdminService = require('../services/productAdminService');
 const { authenticate, authorize } = require('../middleware/auth');
 const asyncHandler = require('../middleware/asyncHandler');
 const { csrfProtection } = require('../middleware/csrf');
 
+// ─── Product validation rules ────────────────────────────────────────────────
+const validateProduct = [
+    body('name').notEmpty().withMessage('Product name is required').trim().isLength({ max: 255 }),
+    body('slug')
+        .notEmpty().withMessage('Slug is required')
+        .matches(/^[a-z0-9-]+$/).withMessage('Slug must be lowercase letters, numbers, and hyphens only')
+        .isLength({ max: 255 }),
+    body('price').isFloat({ min: 0 }).withMessage('Price must be a non-negative number'),
+    body('stock').isInt({ min: 0 }).withMessage('Stock must be a non-negative integer'),
+    body('description').optional().trim().isLength({ max: 5000 }),
+    body('image_url').optional({ checkFalsy: true }).isURL().withMessage('Image URL must be a valid URL'),
+];
+
+const handleValidationErrors = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).render('pages/error', {
+            title: 'Validation Error',
+            message: errors.array().map(e => e.msg).join(', '),
+            statusCode: 400,
+        });
+    }
+    next();
+};
+
 // Protect all admin routes
 router.use(authenticate);
-router.use(authorize('admin'));
+router.use(authorize('admin', 'super_admin'));
 
 // Override default layout for admin routes
 router.use((req, res, next) => {
@@ -46,7 +72,7 @@ router.get('/products/create', asyncHandler(async (req, res) => {
     });
 }));
 
-router.post('/products/create', csrfProtection, asyncHandler(async (req, res) => {
+router.post('/products/create', csrfProtection, validateProduct, handleValidationErrors, asyncHandler(async (req, res) => {
     await productAdminService.createProduct(req.body);
     res.redirect('/admin/products');
 }));
@@ -55,7 +81,7 @@ router.get('/products/:id/edit', asyncHandler(async (req, res) => {
     const product = await productAdminService.getProductById(req.params.id);
     const categories = await productAdminService.getCategories();
     if (!product) {
-        return res.status(404).render('pages/error', { message: 'Product not found' });
+        return res.status(404).render('pages/error', { title: 'Not Found', message: 'Product not found', statusCode: 404 });
     }
     res.render('pages/admin/products/form', {
         title: 'Edit Product',
@@ -65,7 +91,7 @@ router.get('/products/:id/edit', asyncHandler(async (req, res) => {
     });
 }));
 
-router.post('/products/:id/edit', csrfProtection, asyncHandler(async (req, res) => {
+router.post('/products/:id/edit', csrfProtection, validateProduct, handleValidationErrors, asyncHandler(async (req, res) => {
     // Checkbox mapping: if not checked, it doesn't send 'is_active'. So we map it.
     const updateData = {
         ...req.body,
@@ -95,7 +121,7 @@ router.get('/orders', asyncHandler(async (req, res) => {
 router.get('/orders/:id', asyncHandler(async (req, res) => {
     const order = await productAdminService.getOrderById(req.params.id);
     if (!order) {
-        return res.status(404).render('pages/error', { message: 'Order not found' });
+        return res.status(404).render('pages/error', { title: 'Not Found', message: 'Order not found', statusCode: 404 });
     }
     res.render('pages/admin/orders/show', {
         title: `Order Details - ${order.id}`,

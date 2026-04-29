@@ -6,6 +6,7 @@ const userService = require('../services/userService');
 const { generateAccessToken, generateRefreshToken } = require('../utils/jwt');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../middleware/asyncHandler');
+const pool = require('../config/db');
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ const authLimiter = rateLimit({
 const validateRegister = [
     body('email').isEmail().withMessage('Please provide a valid email address'),
     body('password')
-        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
+        .isLength({ min: 8, max: 128 }).withMessage('Password must be between 8 and 128 characters long')
         .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
     body('fullName').notEmpty().withMessage('Full name is required')
 ];
@@ -94,7 +95,7 @@ router.post('/login', authLimiter, validateLogin, handleValidationErrors, asyncH
     });
 }));
 
-router.post('/refresh', asyncHandler(async (req, res) => {
+router.post('/refresh', authLimiter, asyncHandler(async (req, res) => {
     const refreshToken = req.cookies.refresh_token;
     
     if (!refreshToken) {
@@ -104,6 +105,11 @@ router.post('/refresh', asyncHandler(async (req, res) => {
     try {
         const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
         
+        const revokedCheck = await pool.query('SELECT token FROM revoked_tokens WHERE token = $1', [refreshToken]);
+        if (revokedCheck.rows.length > 0) {
+            throw new AppError('Refresh token has been revoked', 401);
+        }
+        
         const user = await userService.findUserById(decoded.userId);
         if (!user) {
             throw new AppError('User not found', 401);
@@ -111,6 +117,8 @@ router.post('/refresh', asyncHandler(async (req, res) => {
         
         const newAccessToken = generateAccessToken(user);
         const newRefreshToken = generateRefreshToken(user);
+        
+        await pool.query('INSERT INTO revoked_tokens (token, expires_at) VALUES ($1, to_timestamp($2)) ON CONFLICT (token) DO NOTHING', [refreshToken, decoded.exp]);
         
         setTokenCookies(res, newAccessToken, newRefreshToken);
         
@@ -120,11 +128,21 @@ router.post('/refresh', asyncHandler(async (req, res) => {
     }
 }));
 
-router.post('/logout', (req, res) => {
+router.post('/logout', asyncHandler(async (req, res) => {
+    const refreshToken = req.cookies.refresh_token;
+    if (refreshToken) {
+        try {
+            const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+            await pool.query('INSERT INTO revoked_tokens (token, expires_at) VALUES ($1, to_timestamp($2)) ON CONFLICT (token) DO NOTHING', [refreshToken, decoded.exp]);
+        } catch (err) {
+            // Ignore errors (token already expired/invalid)
+        }
+    }
+
     res.clearCookie('access_token', { path: '/' });
     res.clearCookie('refresh_token', { path: '/api/auth/refresh' });
     
     res.json({ message: 'Logout successful' });
-});
+}));
 
 module.exports = router;

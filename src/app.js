@@ -24,7 +24,8 @@ app.use(helmet({
     },
 }));
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || '*'
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    credentials: true
 }));
 
 // Rate Limiting
@@ -90,12 +91,9 @@ app.get('/', asyncHandler(async (req, res) => {
     });
 }));
 
-// 404 Catch-all — render dedicated 404 page
-app.use((req, res) => {
-    res.status(404).render('pages/404', {
-        title: 'Page Not Found',
-        description: 'The page you are looking for could not be found.',
-    });
+// 404 Catch-all — pass AppError to global handler
+app.use((req, res, next) => {
+    next(new AppError('The page you are looking for could not be found.', 404));
 });
 
 // Global Error Handler
