@@ -36,17 +36,19 @@
                     <span class="font-mono text-sm font-semibold text-stone-900">#<%= order.id.split('-')[0].toUpperCase() %></span>
                     <% 
                       const statusColors = {
+                        'awaiting_payment': 'bg-yellow-50 text-yellow-700 border-yellow-200',
+                        'paid': 'bg-emerald-50 text-emerald-700 border-emerald-200',
                         'pending': 'bg-yellow-50 text-yellow-700 border-yellow-200',
                         'processing': 'bg-blue-50 text-blue-700 border-blue-200',
                         'shipped': 'bg-indigo-50 text-indigo-700 border-indigo-200',
                         'delivered': 'bg-emerald-50 text-emerald-700 border-emerald-200',
                         'cancelled': 'bg-red-50 text-red-700 border-red-200',
-                        'confirmed': 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                        'confirmed': 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       };
                       const colorClass = statusColors[order.status] || 'bg-stone-50 text-stone-700 border-stone-200';
                     %>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border <%= colorClass %> capitalize">
-                      <%= order.status === 'confirmed' ? 'pending' : order.status %>
+                      <%= order.status === 'awaiting_payment' ? 'Awaiting Payment' : order.status === 'paid' ? 'Paid' : order.status === 'confirmed' ? 'Confirmed' : order.status %>
                     </span>
                   </div>
                   <p class="text-sm text-stone-500">
@@ -142,6 +144,10 @@
     <div id="auth-message" class="mt-4 text-center text-sm hidden p-3 rounded-lg"></div>
 
     <script>
+      // returnTo: where to redirect after login (set by server when user was
+      // bounced here by a 401, e.g. after a Stripe payment redirect)
+      const RETURN_TO = <%- JSON.stringify(locals.returnTo || null) %>;
+
       const tabLogin = document.getElementById('tab-login');
       const tabRegister = document.getElementById('tab-register');
       const formLogin = document.getElementById('form-login');
@@ -183,7 +189,15 @@
           const result = await res.json();
           if (res.ok) {
             showMessage('Login successful!', false);
-            setTimeout(() => window.location.reload(), 500);
+            setTimeout(() => {
+              // If we were bounced here by a 401 (e.g. Stripe redirect), go
+              // back to the original destination; otherwise just reload.
+              if (RETURN_TO) {
+                window.location.href = RETURN_TO;
+              } else {
+                window.location.reload();
+              }
+            }, 500);
           } else {
             showMessage(result.error || result.errors?.[0]?.msg || 'Login failed', true);
           }

@@ -1,10 +1,12 @@
 <%
-  const shortId = order.id.split('-')[0].toUpperCase();
-  const createdAt = new Date(order.created_at);
-  const formattedDate = createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const formattedTime = createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  const addr = order.shipping_address;
-  const subtotal = parseFloat(order.total).toFixed(2);
+  // order may be null if the webhook hasn't fired yet
+  const hasOrder = !!order;
+  const shortId       = hasOrder ? order.id.split('-')[0].toUpperCase() : null;
+  const createdAt     = hasOrder ? new Date(order.created_at) : null;
+  const formattedDate = hasOrder ? createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : null;
+  const formattedTime = hasOrder ? createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : null;
+  const addr          = hasOrder ? order.shipping_address : null;
+  const subtotal      = hasOrder ? parseFloat(order.total).toFixed(2) : null;
 %>
 
 <style>
@@ -56,15 +58,34 @@
            class="w-56 h-auto mx-auto drop-shadow-md select-none"
            style="filter: drop-shadow(0 8px 20px rgba(0,0,0,0.12));">
     </div>
-    <span class="tag-confirmed mb-4 inline-block">Order Confirmed</span>
-    <h1 class="text-4xl md:text-5xl font-light text-gray-900 mt-4 mb-3 tracking-tight">
-      Thank you for your order!
-    </h1>
-    <p class="text-gray-500 text-lg max-w-xl mx-auto">
-      We've received your order and are getting it ready. You'll hear from us as soon as it ships.
-    </p>
+    <% if (hasOrder) { %>
+      <span class="tag-confirmed mb-4 inline-block">Order Confirmed</span>
+      <h1 class="text-4xl md:text-5xl font-light text-gray-900 mt-4 mb-3 tracking-tight">
+        Thank you for your order!
+      </h1>
+      <p class="text-gray-500 text-lg max-w-xl mx-auto">
+        We've received your order and are getting it ready. You'll hear from us as soon as it ships.
+      </p>
+    <% } else if (isPolling) { %>
+      <span class="tag-confirmed mb-4 inline-block" style="background:#fefce8;color:#ca8a04;border-color:#fde68a;">Confirming Order…</span>
+      <h1 class="text-4xl md:text-5xl font-light text-gray-900 mt-4 mb-3 tracking-tight">
+        Payment received!
+      </h1>
+      <p class="text-gray-500 text-lg max-w-xl mx-auto">
+        Your payment was successful. We’re just confirming your order details &mdash; this page will refresh automatically.
+      </p>
+    <% } else { %>
+      <span class="tag-confirmed mb-4 inline-block" style="background:#eff6ff;color:#2563eb;border-color:#bfdbfe;">Payment Received</span>
+      <h1 class="text-4xl md:text-5xl font-light text-gray-900 mt-4 mb-3 tracking-tight">
+        Thank you for your purchase!
+      </h1>
+      <p class="text-gray-500 text-lg max-w-xl mx-auto">
+        Your payment was successful. Check <a href="/account" class="underline hover:text-gray-700">My Account</a> for the full order details.
+      </p>
+    <% } %>
   </div>
 
+  <% if (hasOrder) { %>
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
     <!-- ── LEFT: Order Summary ── -->
@@ -83,7 +104,7 @@
         </div>
         <div>
           <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Status</p>
-          <span class="tag-confirmed">Confirmed</span>
+          <span class="tag-confirmed"><%= order.status === 'paid' ? 'Paid' : 'Confirmed' %></span>
         </div>
         <div class="text-right">
           <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">Total Paid</p>
@@ -174,7 +195,17 @@
       <div class="confirmation-card p-6 anim-slide anim-delay3">
         <h2 class="text-base font-semibold text-gray-900 mb-5">Delivery Progress</h2>
         
-        <% if (order.status === 'cancelled') { %>
+        <% if (order.status === 'awaiting_payment') { %>
+          <div class="bg-blue-50 text-blue-700 p-4 rounded-xl border border-blue-100 flex items-center gap-3">
+            <svg class="w-6 h-6 flex-shrink-0 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 14v1m8-8h-1M5 12H4m13.657-6.343l-.707.707M6.343 17.657l-.707.707m11.314 0l-.707-.707M6.343 6.343l-.707-.707" />
+            </svg>
+            <div>
+              <p class="font-medium">Awaiting Payment</p>
+              <p class="text-sm mt-0.5 text-blue-500">Your payment is being processed.</p>
+            </div>
+          </div>
+        <% } else if (order.status === 'cancelled') { %>
           <div class="bg-red-50 text-red-600 p-4 rounded-xl border border-red-100 flex items-center gap-3">
             <svg class="w-6 h-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -186,6 +217,7 @@
           </div>
         <% } else { 
             let level = 1;
+            if (order.status === 'paid' || order.status === 'confirmed') level = 1;
             if (order.status === 'processing') level = 2;
             if (order.status === 'shipped') level = 3;
             if (order.status === 'delivered') level = 4;
@@ -245,4 +277,63 @@
 
     </div>
   </div>
+
+  <% } else { %>
+  <!-- Order not ready yet: show countdown auto-refresh -->
+  <div class="max-w-md mx-auto mt-4 anim-slide anim-delay2">
+
+    <% if (isPolling && sessionId) { %>
+    <!-- Spinner card with JS auto-refresh -->
+    <div class="confirmation-card p-8 text-center">
+      <div class="flex justify-center mb-6">
+        <svg id="pollSpinner" class="animate-spin w-12 h-12 text-amber-500" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+          <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </div>
+      <p class="font-semibold text-gray-800 text-lg mb-1">Confirming your order…</p>
+      <p class="text-sm text-gray-500 mb-6">Refreshing in <span id="pollCountdown" class="font-bold text-amber-600">5</span> s</p>
+      <div class="w-full bg-gray-100 rounded-full h-1.5">
+        <div id="pollBar" class="bg-amber-400 h-1.5 rounded-full transition-all duration-1000" style="width:100%"></div>
+      </div>
+    </div>
+
+    <script>
+    (function () {
+      const TOTAL  = 5;                 // seconds before reload
+      const url    = new URL(window.location.href);
+      let remaining = TOTAL;
+
+      const countdown = document.getElementById('pollCountdown');
+      const bar       = document.getElementById('pollBar');
+
+      const tick = setInterval(function () {
+        remaining -= 1;
+        if (countdown) countdown.textContent = remaining;
+        if (bar) bar.style.width = ((remaining / TOTAL) * 100) + '%';
+        if (remaining <= 0) {
+          clearInterval(tick);
+          window.location.href = url.href;  // reload same URL
+        }
+      }, 1000);
+    })();
+    </script>
+
+    <% } else { %>
+    <!-- Fallback CTA (no session_id available) -->
+    <div class="flex flex-col gap-3">
+      <a href="/account"
+         class="w-full text-center bg-gray-900 text-white px-6 py-3.5 rounded-xl font-medium hover:bg-black transition-all hover:shadow-lg">
+        View My Orders
+      </a>
+      <a href="/shop"
+         class="w-full text-center bg-white text-gray-900 border border-gray-200 px-6 py-3.5 rounded-xl font-medium hover:bg-gray-50 transition-colors">
+        Continue Shopping
+      </a>
+    </div>
+    <% } %>
+  </div>
+  <% } %>
+
 </div>

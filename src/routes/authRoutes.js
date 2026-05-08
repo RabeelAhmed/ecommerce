@@ -46,14 +46,22 @@ const handleValidationErrors = (req, res, next) => {
 const setTokenCookies = (res, accessToken, refreshToken) => {
     const isProduction = process.env.NODE_ENV === 'production';
     
+    // 'Lax' (not 'Strict') is required so the browser sends this cookie when
+    // Stripe (or any external payment provider) redirects the user back to our
+    // app via a top-level GET navigation. 'Strict' silently drops the cookie
+    // on cross-site redirects, causing a 401 on the confirmation page.
+    // 'Lax' still blocks the cookie on cross-site AJAX / form-POST, so our
+    // custom CSRF protection remains fully effective.
     res.cookie('access_token', accessToken, {
         httpOnly: true,
         secure: isProduction,
-        sameSite: 'Strict',
+        sameSite: 'Lax',
         path: '/',
         maxAge: 15 * 60 * 1000 // 15 minutes
     });
 
+    // refresh_token is only consumed by /api/auth/refresh (same-site AJAX),
+    // so 'Strict' is appropriate here.
     res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
         secure: isProduction,

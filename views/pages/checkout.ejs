@@ -134,7 +134,7 @@ document.getElementById('checkoutForm').addEventListener('submit', async (e) => 
     
     // Set loading state
     submitBtn.disabled = true;
-    btnText.textContent = 'Processing...';
+    btnText.textContent = 'Redirecting to payment…';
     btnLoader.classList.remove('hidden');
 
     const formData = {
@@ -161,8 +161,8 @@ document.getElementById('checkoutForm').addEventListener('submit', async (e) => 
             throw new Error(data.message || 'Failed to process checkout');
         }
 
-        // Success - Redirect to confirmation
-        window.location.href = `/order/${data.orderId}/confirmation`;
+        // Success — redirect browser to the Stripe-hosted Checkout page
+        window.location.href = data.url;
         
     } catch (error) {
         // Show error message

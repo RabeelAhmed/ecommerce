@@ -1,95 +1,165 @@
-# NOMADICA E-commerce Platform
+# NOMADICA — Handcrafted Treasures E-Commerce Platform
 
-A full-featured, robust, and beautifully designed e-commerce web application built with Node.js, Express, PostgreSQL, and EJS. Nomadica focuses on providing a seamless shopping experience for handcrafted goods from around the world.
+A full-featured, production-ready e-commerce web application built with **Node.js**, **Express**, **PostgreSQL**, and **EJS**. NOMADICA delivers a seamless shopping experience for handcrafted goods from around the world, with **Stripe Checkout** integration for secure, hosted payments.
+
+---
 
 ## ✨ Features
 
-- **User Authentication:** Secure registration and login using bcrypt and JWT.
-- **Product Catalog:** Browse, filter, and view detailed product pages.
-- **Shopping Cart:** Persistent, authenticated shopping cart.
-- **Checkout Process:** Multi-step checkout with form validation and AJAX submission.
-- **Order Management:** View order history in the user dashboard.
-- **Admin Dashboard:** Dedicated admin interface to manage products and orders.
-- **Responsive Design:** Mobile-first approach using Tailwind CSS.
-- **Security:** Helmet, CORS, Rate Limiting, and custom CSRF protection built-in.
-- **Professional UI:** Toast notifications, skeleton loading states, branded 404/error pages, and rich empty states.
+- **User Authentication** — Secure registration & login with bcrypt password hashing and JWT (access + refresh tokens). Cookies set with `HttpOnly`, `sameSite: Lax` for compatibility with external redirects (e.g. Stripe).
+- **Product Catalog** — Browse, filter by category, search, and view rich product detail pages.
+- **Shopping Cart** — Persistent, authenticated cart with in-memory caching (30 s TTL) and real-time badge updates.
+- **Stripe Checkout (Test Mode)** — Hosted, PCI-compliant payment flow. Orders are created as `awaiting_payment`, then finalised atomically via a signed webhook.
+- **Webhook-driven Order Fulfilment** — Stock deduction and cart clearing happen inside a DB transaction triggered by the `checkout.session.completed` event, preventing double-fulfilment.
+- **Order Management** — Full order history in the user dashboard with live status badges (`awaiting_payment`, `paid`, `processing`, `shipped`, `delivered`, `cancelled`).
+- **Order Confirmation Page** — Server-side retry loop (5 × 1 s) handles the webhook race condition; client-side countdown auto-refresh kicks in if the webhook is unusually slow.
+- **Admin Dashboard** — Dedicated interface to manage products, stock levels, and all orders.
+- **Responsive Design** — Mobile-first layout using Tailwind CSS.
+- **Security** — Helmet CSP, CORS, per-route rate limiting, custom stateless CSRF protection, UUID validation guards, and raw-body webhook signature verification.
+- **Professional UI** — Toast notifications, animated order confirmation, skeleton states, branded 404/error pages.
 
-## 🛠 Technologies Used
+---
 
-- **Backend:** Node.js, Express.js (v5)
-- **Database:** PostgreSQL (`pg`)
-- **Frontend/Views:** EJS, express-ejs-layouts, Tailwind CSS
-- **Authentication:** jsonwebtoken, bcryptjs
-- **Security:** helmet, cors, express-rate-limit, custom CSRF
-- **Validation:** express-validator
-- **Tooling:** concurrently, nodemon, autoprefixer
+## 🛠 Tech Stack
+
+| Layer | Technologies |
+|---|---|
+| **Runtime** | Node.js v18+ |
+| **Framework** | Express.js v5 |
+| **Database** | PostgreSQL (`pg`) |
+| **Views** | EJS, express-ejs-layouts, Tailwind CSS |
+| **Payments** | Stripe (`stripe` npm package) |
+| **Auth** | jsonwebtoken, bcryptjs, cookie-parser |
+| **Security** | helmet, cors, express-rate-limit, custom CSRF |
+| **Validation** | express-validator |
+| **Tooling** | concurrently, nodemon, autoprefixer |
+
+---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v18+ recommended)
-- PostgreSQL
+- Node.js v18+
+- PostgreSQL 14+
+- A [Stripe account](https://stripe.com) (free, Test Mode is sufficient)
+- [Stripe CLI](https://stripe.com/docs/stripe-cli) (for local webhook forwarding)
 
-### Installation
+### 1. Clone & Install
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd ecommerce
-   ```
+```bash
+git clone <repository-url>
+cd ecommerce
+npm install
+```
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+### 2. Configure Environment Variables
 
-3. **Configure Environment Variables:**
-   Rename `.env.example` to `.env` and update the credentials:
-   ```env
-   PORT=3000
-   DATABASE_URL=postgres://user:password@localhost:5432/ecommerce
-   JWT_SECRET=your_jwt_secret
-   JWT_EXPIRES_IN=90d
-   COOKIE_SECRET=your_cookie_secret
-   CORS_ORIGIN=*
-   NODE_ENV=development
-   ```
+Copy `.env.example` to `.env` and fill in your values:
 
-4. **Database Setup:**
-   Run the migrations and seed the database:
-   ```bash
-   node db/run-migrations.js
-   node db/seed.js
-   ```
+```env
+PORT=3000
+CORS_ORIGIN=*
+NODE_ENV=development
 
-5. **Start the Application:**
-   For development (watches CSS and JS changes):
-   ```bash
-   npm run dev
-   ```
-   For production:
-   ```bash
-   npm start
-   ```
+DATABASE_URL=postgresql://user:password@localhost:5432/ecommerce
+JWT_ACCESS_SECRET=your_32char_access_secret
+JWT_REFRESH_SECRET=your_32char_refresh_secret
+COOKIE_SECRET=your_32char_cookie_secret
+
+# Stripe — get these from https://dashboard.stripe.com/test/apikeys
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+
+# Generated by: stripe listen --forward-to localhost:3000/api/webhook
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+### 3. Database Setup
+
+```bash
+# Create the database
+node db/create-db.js
+
+# Run all migrations (creates tables + Stripe session column)
+node db/run-migrations.js
+
+# Seed sample products and categories
+node db/seed.js
+```
+
+### 4. Start Stripe Webhook Forwarding (Dev Only)
+
+In a **separate terminal**, keep this running while developing:
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhook
+```
+
+Copy the `whsec_...` secret it prints and paste it into your `.env` as `STRIPE_WEBHOOK_SECRET`.
+
+### 5. Start the Application
+
+```bash
+# Development (watches CSS and JS)
+npm run dev
+
+# Production
+npm start
+```
+
+The app will be available at `http://localhost:3000`.
+
+---
+
+## 💳 Payment Flow
+
+```
+User fills shipping form (checkout page)
+  → POST /api/orders  [auth + CSRF protected]
+    → createPendingOrder()  →  DB: status = 'awaiting_payment'
+    → createCheckoutSession()  →  Stripe API
+  ← { url: "https://checkout.stripe.com/..." }
+  → Browser redirects to Stripe-hosted Checkout
+  → User enters test card  4242 4242 4242 4242
+  → Stripe fires POST /api/webhook  [raw body, signature-verified]
+    → DB transaction:
+        LOCK order row
+        Deduct stock per item
+        Clear user's cart
+        UPDATE orders SET status = 'paid', stripe_session_id = ...
+  → Stripe redirects user to GET /order/confirmation?session_id=...
+    → Server retries DB lookup up to 5 × 1 s (handles webhook timing)
+    → Renders full order confirmation  ✓
+```
+
+### Test Cards (Stripe Test Mode)
+
+| Scenario | Card Number |
+|---|---|
+| ✅ Payment succeeds | `4242 4242 4242 4242` |
+| ❌ Payment declined | `4000 0000 0000 0002` |
+| 🔐 3D Secure required | `4000 0025 0000 3155` |
+
+Use any future expiry, any 3-digit CVV, any ZIP.
 
 ---
 
 ## 📸 Application Flow & Screenshots
 
 ### 1. Home Page
-Welcome to Nomadica, where you can discover featured artisan treasures.
+Welcome to NOMADICA — discover featured artisan treasures.
 ![Home Page](./public/images/screenshots/01-home.png)
 
 ### 2. Shop Page
-Browse all our carefully curated categories and products.
+Browse all curated categories and products with search and filters.
 ![Shop Page](./public/images/screenshots/02-shop.png)
 
 ### 3. Product Details
-View specific details about an item, including its origin and history.
+View item details, stock availability, and add to cart.
 ![Product Details](./public/images/screenshots/03-product.png)
 
 ### 4. Checkout
-Fill in your shipping details through a sleek, validated checkout form.
+Fill in shipping details — CSRF-protected AJAX form that redirects to Stripe.
 ![Checkout Page](./public/images/screenshots/08-checkout.png)
 
 ---
@@ -98,30 +168,73 @@ Fill in your shipping details through a sleek, validated checkout form.
 
 ```
 ├── db/
-│   ├── migrations/      # SQL schema definitions
-│   ├── run-migrations.js# Migration runner
-│   └── seed.js          # Initial database seeder
+│   ├── migrations/
+│   │   ├── 001_initial.sql          # Core tables (users, products, orders…)
+│   │   ├── 002_revoked_tokens.sql   # JWT refresh token revocation
+│   │   └── 003_stripe_session.sql   # stripe_session_id column + status expansion
+│   ├── run-migrations.js
+│   └── seed.js
 ├── public/
-│   ├── images/          # Static assets and screenshots
-│   ├── output.css       # Compiled Tailwind CSS
-│   └── styles.css       # Tailwind entry point
+│   ├── images/
+│   └── styles.css / output.css      # Tailwind entry + compiled output
 ├── src/
-│   ├── config/          # Database & app configuration
-│   ├── controllers/     # Route logic (if separated)
-│   ├── middleware/      # Auth, error handling, CSRF, etc.
-│   ├── routes/          # Express route definitions
-│   ├── services/        # Business logic & DB queries
-│   ├── utils/           # Helper functions (AppError, etc.)
-│   └── app.js           # Main Express application
+│   ├── config/
+│   │   ├── db.js                    # PostgreSQL pool
+│   │   └── stripe.js                # Stripe client singleton
+│   ├── controllers/
+│   │   └── webhookController.js     # Stripe webhook handler
+│   ├── middleware/
+│   │   ├── asyncHandler.js
+│   │   ├── attachCart.js
+│   │   ├── auth.js                  # JWT authenticate / authorize
+│   │   ├── csrf.js                  # Stateless CSRF (signed cookie + header)
+│   │   └── errorHandler.js          # Global error handler (silent on 4xx)
+│   ├── models/
+│   │   └── cartModel.js
+│   ├── routes/
+│   │   ├── adminRoutes.js
+│   │   ├── authRoutes.js
+│   │   ├── cartRoutes.js
+│   │   ├── orderRoutes.js           # POST /api/orders, GET /order/confirmation
+│   │   └── shopRoutes.js
+│   ├── services/
+│   │   ├── orderService.js          # createPendingOrder, getOrderBySessionId…
+│   │   ├── paymentService.js        # createCheckoutSession (Stripe)
+│   │   ├── productAdminService.js
+│   │   ├── productService.js
+│   │   └── userService.js
+│   ├── utils/
+│   │   ├── AppError.js
+│   │   └── jwt.js
+│   └── app.js                       # Express app — webhook registered first
 ├── views/
-│   ├── layouts/         # Base EJS templates
-│   ├── pages/           # Individual views (home, shop, cart, admin)
-│   └── partials/        # Reusable UI components (header, footer)
-├── .env.example         # Template for environment variables
-├── package.json         # Dependencies and scripts
-├── postcss.config.js    # PostCSS configuration
-└── tailwind.config.js   # Tailwind CSS configuration
+│   ├── pages/
+│   │   ├── account.ejs              # Login/register + order history + returnTo
+│   │   ├── checkout.ejs             # Shipping form → Stripe redirect
+│   │   ├── order-confirmation.ejs   # Full details or auto-refresh spinner
+│   │   └── …
+│   └── partials/
+├── .env.example
+├── package.json
+└── tailwind.config.js
 ```
 
+---
+
+## 🔒 Security Notes
+
+| Concern | Implementation |
+|---|---|
+| Stripe secret key | Server-only, never exposed to the browser |
+| Webhook authenticity | `stripe.webhooks.constructEvent()` with raw body buffer |
+| Webhook route isolation | Registered **before** `express.json()` — no CSRF, auth, or rate-limiter |
+| CSRF protection | Signed cookie + `X-CSRF-Token` header on all state-mutating routes |
+| Cookie security | `HttpOnly`, `sameSite: Lax` (allows Stripe top-level redirect), `secure` in production |
+| UUID validation | Regex guard on route params before DB queries to prevent cast errors |
+| Error logging | Only unexpected/5xx errors logged; operational 4xx errors are silent |
+
+---
+
 ## 📄 License
+
 This project is licensed under the ISC License.

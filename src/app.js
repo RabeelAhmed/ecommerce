@@ -8,8 +8,18 @@ const ejsLayouts = require('express-ejs-layouts');
 const AppError = require('./utils/AppError');
 const errorHandler = require('./middleware/errorHandler');
 const { attachCsrf } = require('./middleware/csrf');
+const webhookController = require('./controllers/webhookController');
 
 const app = express();
+
+// ─── Stripe Webhook ──────────────────────────────────────────────────────────
+// MUST be registered BEFORE any body-parsing middleware so req.body is a raw
+// Buffer. This route is intentionally excluded from CSRF, auth, and rate limiter.
+app.post(
+    '/api/webhook',
+    express.raw({ type: 'application/json' }),
+    webhookController.handleWebhook
+);
 
 // Security Middleware
 app.use(helmet({
@@ -78,7 +88,8 @@ app.get('/account', asyncHandler(async (req, res) => {
     res.render('pages/account', {
         title: 'Account',
         description: 'Manage your NOMADICA account, view order history, and update your profile.',
-        orders
+        orders,
+        returnTo: req.query.returnTo || null,
     });
 }));
 
