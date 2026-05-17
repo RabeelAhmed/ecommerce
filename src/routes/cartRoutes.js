@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const cartModel = require('../models/cartModel');
+const cartService = require('../services/cartService');
 const { authenticate } = require('../middleware/auth');
 const attachCart = require('../middleware/attachCart');
 const asyncHandler = require('../middleware/asyncHandler');
@@ -9,7 +9,7 @@ const { csrfProtection } = require('../middleware/csrf');
 // ─── API ROUTES ──────────────────────────────────────────────────────────────
 
 router.get('/api/cart', authenticate, asyncHandler(async (req, res) => {
-    const cartData = await cartModel.getCartWithItems(req.user.userId);
+    const cartData = await cartService.getCart(req.user.userId || req.user.id);
     res.json(cartData);
 }));
 
@@ -18,7 +18,7 @@ router.post('/api/cart/items', authenticate, csrfProtection, asyncHandler(async 
     if (!productId || !quantity || quantity < 1) {
         return res.status(400).json({ status: 'error', message: 'Valid productId and quantity are required' });
     }
-    const updatedCart = await cartModel.addItemToCart(req.user.userId, productId, parseInt(quantity, 10));
+    const updatedCart = await cartService.addItemToCart(req.user.userId || req.user.id, productId, parseInt(quantity, 10));
     res.json({ status: 'success', data: updatedCart });
 }));
 
@@ -28,13 +28,13 @@ router.put('/api/cart/items/:productId', authenticate, csrfProtection, asyncHand
     if (quantity === undefined || quantity < 0) {
         return res.status(400).json({ status: 'error', message: 'Valid quantity is required' });
     }
-    const updatedCart = await cartModel.updateCartItem(req.user.userId, productId, parseInt(quantity, 10));
+    const updatedCart = await cartService.updateCartItem(req.user.userId || req.user.id, productId, parseInt(quantity, 10));
     res.json({ status: 'success', data: updatedCart });
 }));
 
 router.delete('/api/cart/items/:productId', authenticate, csrfProtection, asyncHandler(async (req, res) => {
     const { productId } = req.params;
-    const updatedCart = await cartModel.removeItemFromCart(req.user.userId, productId);
+    const updatedCart = await cartService.removeItemFromCart(req.user.userId || req.user.id, productId);
     res.json({ status: 'success', data: updatedCart });
 }));
 

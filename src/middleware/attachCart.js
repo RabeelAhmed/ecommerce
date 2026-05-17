@@ -1,43 +1,47 @@
 const jwt = require('jsonwebtoken');
-const cartModel = require('../models/cartModel');
+const { client: redis, isConnected } = require('../config/redis');
 
+const CART_KEY_PREFIX = 'cart:';
+
+/**
+ * Attach cart count/data to res.locals for navbar rendering.
+ * This middleware is called on EVERY request — it must NEVER hit PostgreSQL.
+ * If Redis is unavailable, we simply show an empty cart indicator.
+ */
 const attachCart = async (req, res, next) => {
     try {
         let userId = null;
 
-        // Check if req.user is already set by authenticate middleware
-        if (req.user && req.user.userId) {
-            userId = req.user.userId;
+        if (req.user && (req.user.userId || req.user.id)) {
+            userId = req.user.userId || req.user.id;
         } else {
-            // Attempt to decode token if available to support public routes
             const token = req.cookies.access_token;
             if (token) {
                 try {
                     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
                     userId = decoded.userId;
-                    
-                    // Attach user info to locals for views, optional but helpful
                     if (!res.locals.user) {
                         res.locals.user = { userId: decoded.userId, role: decoded.role };
                     }
-                } catch (err) {
-                    // Ignore expired or invalid tokens for cart attachment on public routes
-                }
+                } catch (_) { /* expired/invalid — ignore */ }
             }
         }
 
-        if (userId) {
-            const cartData = await cartModel.getCartWithItems(userId);
-            res.locals.cart = cartData;
-            res.locals.cartItemCount = cartData.items.reduce((sum, item) => sum + item.quantity, 0);
-        } else {
-            res.locals.cart = { items: [], total: '0.00' };
-            res.locals.cartItemCount = 0;
+        if (userId && isConnected) {
+            try {
+                const raw = await redis.get(`${CART_KEY_PREFIX}${userId}`);
+                const cart = raw ? JSON.parse(raw) : { items: [], total: '0.00' };
+                res.locals.cart = cart;
+                res.locals.cartItemCount = cart.items.reduce((s, i) => s + i.quantity, 0);
+                return next();
+            } catch (_) { /* Redis command error — fall through to empty cart */ }
         }
+
+        // Default: empty cart (no PG call)
+        res.locals.cart = { items: [], total: '0.00' };
+        res.locals.cartItemCount = 0;
         next();
     } catch (err) {
-        // If DB fails or something else, default to empty cart
-        console.error('Error attaching cart:', err.message);
         res.locals.cart = { items: [], total: '0.00' };
         res.locals.cartItemCount = 0;
         next();

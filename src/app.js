@@ -41,7 +41,7 @@ app.use(cors({
 // Rate Limiting
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 100000, // Increased for stress testing from localhost
     message: 'Too many requests from this IP, please try again after 15 minutes'
 });
 app.use('/api', apiLimiter);
@@ -76,6 +76,10 @@ app.use('/', require('./routes/orderRoutes'));
 // ─── Home Page ───────────────────────────────────────────────────────────────
 const productService = require('./services/productService');
 const asyncHandler   = require('./middleware/asyncHandler');
+const NodeCache = require('node-cache');
+
+const homeCache = new NodeCache({ stdTTL: process.env.CACHE_TTL_SECONDS || 30, useClones: false });
+const pendingHomeRequests = new Map();
 
 const orderService = require('./services/orderService');
 
@@ -93,13 +97,58 @@ app.get('/account', asyncHandler(async (req, res) => {
     });
 }));
 
-app.get('/', asyncHandler(async (req, res) => {
-    const { products } = await productService.getAllProducts({ page: 1, limit: 4 });
-    res.render('pages/home', {
-        title: 'Home',
-        description: 'NOMADICA – Handcrafted goods from around the world. Discover unique artisan treasures, ethically sourced and beautifully made.',
-        products,
+app.get('/', asyncHandler(async (req, res, next) => {
+    const cacheKey = 'home_page';
+    
+    const cachedHtml = homeCache.get(cacheKey);
+    if (cachedHtml) {
+        res.setHeader('X-Cache', 'HIT');
+        return res.send(cachedHtml);
+    }
+    
+    if (pendingHomeRequests.has(cacheKey)) {
+        try {
+            const html = await pendingHomeRequests.get(cacheKey);
+            res.setHeader('X-Cache', 'HIT-WAIT');
+            return res.send(html);
+        } catch (err) {
+            return next(err);
+        }
+    }
+    
+    let resolveWork, rejectWork;
+    const workPromise = new Promise((resolve, reject) => {
+        resolveWork = resolve;
+        rejectWork = reject;
     });
+    pendingHomeRequests.set(cacheKey, workPromise);
+    
+    (async () => {
+        try {
+            const { products } = await productService.getAllProducts({ page: 1, limit: 4 });
+            res.render('pages/home', {
+                title: 'Home',
+                description: 'NOMADICA – Handcrafted goods from around the world. Discover unique artisan treasures, ethically sourced and beautifully made.',
+                products,
+            }, (err, html) => {
+                if (err) return rejectWork(err);
+                homeCache.set(cacheKey, html);
+                resolveWork(html);
+            });
+        } catch (err) {
+            rejectWork(err);
+        }
+    })();
+    
+    try {
+        const html = await workPromise;
+        res.setHeader('X-Cache', 'MISS');
+        res.send(html);
+    } catch (err) {
+        next(err);
+    } finally {
+        pendingHomeRequests.delete(cacheKey);
+    }
 }));
 
 // 404 Catch-all — pass AppError to global handler
@@ -115,5 +164,41 @@ const PORT = process.env.PORT || 3000;
 const http = require('http');
 const server = http.createServer(app).listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+    warmProductCache();
 });
-// nodemon trigger 2
+
+/**
+ * Pre-load all active products into Redis on startup.
+ * This ensures addItemToCart never needs a PG round-trip for product details.
+ */
+async function warmProductCache() {
+    const { client: redis } = require('./config/redis');
+    const pool = require('./config/db');
+
+    // Wait up to 8s for Redis to be ready
+    let waited = 0;
+    while (redis.status !== 'ready' && waited < 8000) {
+        await new Promise(r => setTimeout(r, 250));
+        waited += 250;
+    }
+
+    if (redis.status !== 'ready') {
+        console.warn('Product cache warm-up skipped: Redis not ready after 8s');
+        return;
+    }
+
+    try {
+        const { rows } = await pool.query(
+            'SELECT id, name, price, stock, image_url as "imageUrl", slug FROM products WHERE is_active = true'
+        );
+        const pipeline = redis.pipeline();
+        for (const p of rows) {
+            pipeline.set(`product:${p.id}`, JSON.stringify(p), 'EX', 600);
+        }
+        await pipeline.exec();
+        console.log(`Product cache warmed: ${rows.length} products loaded into Redis`);
+    } catch (err) {
+        console.warn('Product cache warm-up failed:', err.message);
+    }
+}
+

@@ -5,10 +5,12 @@ const asyncHandler = require('../middleware/asyncHandler');
 const AppError = require('../utils/AppError');
 const orderService = require('../services/orderService');
 const paymentService = require('../services/paymentService');
-const cartModel = require('../models/cartModel');
+const cartService = require('../services/cartService');
 const { csrfProtection } = require('../middleware/csrf');
 
-// POST /api/orders - Create pending order + Stripe Checkout session
+const { orderQueue } = require('../queues/orderQueue');
+
+// POST /api/orders - Create pending order (queued)
 router.post('/api/orders', auth, csrfProtection, asyncHandler(async (req, res) => {
     const { name, address, city, zip, country } = req.body;
 
@@ -19,23 +21,26 @@ router.post('/api/orders', auth, csrfProtection, asyncHandler(async (req, res) =
 
     const shippingAddress = { name, address, city, zip, country };
 
-    // Create a pending order (no stock deduction yet)
-    const { orderId, items } = await orderService.createPendingOrder(req.user.id, shippingAddress);
+    // Validate cart
+    const cart = await cartService.getCart(req.user.id);
+    if (!cart || !cart.items || cart.items.length === 0) {
+        throw new AppError('Your cart is empty', 400);
+    }
 
-    // Create a Stripe Checkout session
-    const session = await paymentService.createCheckoutSession({
-        lineItems:      items,
-        userId:         req.user.id,
-        pendingOrderId: orderId,
+    // Enqueue order processing job
+    await orderQueue.add('process-order', {
+        userId: req.user.id,
+        shippingAddress,
+        cart
     });
 
-    // Return the Stripe-hosted checkout URL to the frontend
-    res.status(200).json({ url: session.url });
+    // Return 202 Accepted immediately
+    res.status(202).json({ message: "Order received", estimatedCompletion: "soon" });
 }));
 
 // GET /checkout - Render checkout page
 router.get('/checkout', auth, asyncHandler(async (req, res) => {
-    const cart = await cartModel.getCartWithItems(req.user.id);
+    const cart = await cartService.getCart(req.user.id);
     
     if (!cart.items || cart.items.length === 0) {
         return res.redirect('/cart');

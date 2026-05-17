@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const AppError = require('../utils/AppError');
+const cartService = require('./cartService');
 
 /**
  * createPendingOrder — called before redirecting to Stripe.
@@ -11,42 +12,44 @@ const AppError = require('../utils/AppError');
  * @returns {Promise<{ orderId: string, items: Array }>}
  */
 const createPendingOrder = async (userId, shippingAddress) => {
-    const client = await pool.connect();
+    // Get cart from Redis (or fallback)
+    const cart = await cartService.getCart(userId);
+    if (!cart.items || cart.items.length === 0) {
+        throw new AppError('Your cart is empty', 400);
+    }
 
+    const client = await pool.connect();
     try {
         await client.query('BEGIN');
-
-        // a. Fetch cart items with product details
-        const cartQuery = `
-            SELECT
-                ci.quantity AS cart_quantity,
-                p.id        AS product_id,
-                p.name      AS product_name,
-                p.price     AS product_price,
-                p.stock     AS product_stock
-            FROM cart_items ci
-            JOIN products p ON ci.product_id = p.id
-            JOIN carts    c ON c.id = ci.cart_id
-            WHERE c.user_id = $1
-            FOR UPDATE OF p NOWAIT
+        
+        // Lock products and check stock
+        const productIds = cart.items.map(item => item.productId);
+        const productsQuery = `
+            SELECT id as product_id, name as product_name, price as product_price, stock as product_stock
+            FROM products
+            WHERE id = ANY($1)
+            FOR UPDATE NOWAIT
         `;
-        const cartResult = await client.query(cartQuery, [userId]);
-        const items = cartResult.rows;
-
-        if (items.length === 0) {
-            throw new AppError('Your cart is empty', 400);
+        const productsResult = await client.query(productsQuery, [productIds]);
+        
+        const productsMap = {};
+        for (const p of productsResult.rows) {
+            productsMap[p.product_id] = p;
         }
 
-        // b. Validate stock and compute total
         let total = 0;
-        for (const item of items) {
-            if (item.product_stock < item.cart_quantity) {
-                throw new AppError(`Insufficient stock for product: ${item.product_name}`, 400);
+        for (const item of cart.items) {
+            const product = productsMap[item.productId];
+            if (!product) {
+                throw new AppError(`Product not found: ${item.name}`, 404);
             }
-            total += parseFloat(item.product_price) * item.cart_quantity;
+            if (product.product_stock < item.quantity) {
+                throw new AppError(`Insufficient stock for product: ${product.product_name}`, 400);
+            }
+            total += parseFloat(product.product_price) * item.quantity;
         }
 
-        // c. Insert order with status = 'awaiting_payment'
+        // Insert order with status = 'awaiting_payment'
         const orderResult = await client.query(
             `INSERT INTO orders (user_id, status, total, shipping_address)
              VALUES ($1, 'awaiting_payment', $2, $3)
@@ -55,12 +58,13 @@ const createPendingOrder = async (userId, shippingAddress) => {
         );
         const order = orderResult.rows[0];
 
-        // c. Insert order_items (no stock deduction, no cart clear yet)
-        for (const item of items) {
+        // Insert order_items (no stock deduction, no cart clear yet)
+        for (const item of cart.items) {
+            const product = productsMap[item.productId];
             await client.query(
                 `INSERT INTO order_items (order_id, product_id, product_name, price, quantity)
                  VALUES ($1, $2, $3, $4, $5)`,
-                [order.id, item.product_id, item.product_name, item.product_price, item.cart_quantity]
+                [order.id, product.product_id, product.product_name, product.product_price, item.quantity]
             );
         }
 
@@ -69,10 +73,10 @@ const createPendingOrder = async (userId, shippingAddress) => {
         // Return the pending order ID and the line items for Stripe
         return {
             orderId: order.id,
-            items: items.map((i) => ({
-                name:     i.product_name,
-                price:    i.product_price,
-                quantity: i.cart_quantity,
+            items: cart.items.map((i) => ({
+                name:     productsMap[i.productId].product_name,
+                price:    productsMap[i.productId].product_price,
+                quantity: i.quantity,
             })),
         };
 
@@ -116,41 +120,43 @@ const getOrderBySessionId = async (sessionId, userId) => {
 
 
 const createOrder = async (userId, shippingAddress) => {
+    const cart = await cartService.getCart(userId);
+    if (!cart.items || cart.items.length === 0) {
+        throw new AppError('Your cart is empty', 400);
+    }
+
     const client = await pool.connect();
 
     try {
         await client.query('BEGIN');
 
-        // Step a: Fetch cart items and lock products
-        const cartQuery = `
-            SELECT 
-                ci.quantity as cart_quantity, 
-                p.id as product_id, 
-                p.name as product_name, 
-                p.price as product_price, 
-                p.stock as product_stock
-            FROM cart_items ci
-            JOIN products p ON ci.product_id = p.id
-            JOIN carts c ON c.id = ci.cart_id
-            WHERE c.user_id = $1
-            FOR UPDATE OF p NOWAIT
+        // Step a: Fetch products and lock
+        const productIds = cart.items.map(item => item.productId);
+        const productsQuery = `
+            SELECT id as product_id, name as product_name, price as product_price, stock as product_stock
+            FROM products
+            WHERE id = ANY($1)
+            FOR UPDATE NOWAIT
         `;
+        const productsResult = await client.query(productsQuery, [productIds]);
         
-        const cartResult = await client.query(cartQuery, [userId]);
-        const items = cartResult.rows;
-
-        if (items.length === 0) {
-            throw new AppError('Your cart is empty', 400);
+        const productsMap = {};
+        for (const p of productsResult.rows) {
+            productsMap[p.product_id] = p;
         }
 
         let total = 0;
 
         // Step b & c: Validate stock and calculate total
-        for (const item of items) {
-            if (item.product_stock < item.cart_quantity) {
-                throw new AppError(`Insufficient stock for product: ${item.product_name}`, 400);
+        for (const item of cart.items) {
+            const product = productsMap[item.productId];
+            if (!product) {
+                throw new AppError(`Product not found: ${item.name}`, 404);
             }
-            total += (parseFloat(item.product_price) * item.cart_quantity);
+            if (product.product_stock < item.quantity) {
+                throw new AppError(`Insufficient stock for product: ${product.product_name}`, 400);
+            }
+            total += (parseFloat(product.product_price) * item.quantity);
         }
 
         // Step d: Insert order
@@ -167,17 +173,18 @@ const createOrder = async (userId, shippingAddress) => {
         const order = orderResult.rows[0];
 
         // Step e: Insert order items and Step f: Deduct stock
-        for (const item of items) {
+        for (const item of cart.items) {
+            const product = productsMap[item.productId];
             const orderItemQuery = `
                 INSERT INTO order_items (order_id, product_id, product_name, price, quantity)
                 VALUES ($1, $2, $3, $4, $5)
             `;
             await client.query(orderItemQuery, [
                 order.id,
-                item.product_id,
-                item.product_name,
-                item.product_price,
-                item.cart_quantity
+                product.product_id,
+                product.product_name,
+                product.product_price,
+                item.quantity
             ]);
 
             const deductStockQuery = `
@@ -185,17 +192,13 @@ const createOrder = async (userId, shippingAddress) => {
                 SET stock = stock - $1 
                 WHERE id = $2
             `;
-            await client.query(deductStockQuery, [item.cart_quantity, item.product_id]);
+            await client.query(deductStockQuery, [item.quantity, product.product_id]);
         }
 
-        // Step g: Clear cart
-        const clearCartQuery = `
-            DELETE FROM cart_items 
-            WHERE cart_id = (SELECT id FROM carts WHERE user_id = $1)
-        `;
-        await client.query(clearCartQuery, [userId]);
-
         await client.query('COMMIT');
+
+        // Step g: Clear cart
+        await cartService.clearCart(userId);
 
         // Step h: Return the created order
         return order;
